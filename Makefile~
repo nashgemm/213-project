@@ -1,0 +1,12 @@
+CC := nvcc -arch sm_20
+
+CFLAGS := -g $(shell sdl2-config --cflags)
+LINKFLAGS := $(shell sdl2-config --libs)
+
+all: cartoonify
+
+clean:
+	@rm -f cartoonify
+
+cartoonify: cartoonify.cu
+	$(CC) $(CFLAGS) -o cartoonify cartoonify.cu $(LINKFLAGS)
