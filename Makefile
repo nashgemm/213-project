@@ -1,7 +1,7 @@
 CC := nvcc -arch sm_20
 
 CFLAGS := -g $(shell sdl2-config --cflags)
-LINKFLAGS := $(shell sdl2-config --libs)
+LINKFLAGS := $(shell sdl2-config --libs) -lcrypto
 
 all: cracker
 

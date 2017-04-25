@@ -67,7 +67,7 @@ int main() {
   
   printf("Enter in your test password: ");
   scanf("%s", testPassword);
-  //MD5((unsigned char*) testPassword, LENGTH, testHash);
+  MD5((unsigned char*) testPassword, LENGTH, testHash);
   
   //maybe make sure that's the number of blocks we want?
   size_t NUM_BLOCKS = pow(NUM_CHAR, LENGTH)/THREADS_PER_BLOCK;
