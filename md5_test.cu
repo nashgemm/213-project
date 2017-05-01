@@ -279,12 +279,15 @@ __device__ void GPU_MD5_Final(unsigned char *result, GPU_MD5_CTX *ctx)
  
 
 __global__ void kernal(char* password, uint8_t* hash) {
+
+  char passwordone[9] = "password";
+  
   //Initialize the MD5 context
   GPU_MD5_CTX context;
   GPU_MD5_Init(&context);
 
   //add our data to MD5
-  GPU_MD5_Update(&context, password, LENGTH);
+  GPU_MD5_Update(&context, passwordone, LENGTH);
 
   //Finish
   uint8_t output[MD5_DIGEST_LENGTH];
@@ -297,7 +300,7 @@ __global__ void kernal(char* password, uint8_t* hash) {
 }
 
 int main() {
-  char password[9] = "12345678";
+  char password[9] = "password";
   uint8_t testHash[MD5_DIGEST_LENGTH];
   MD5((unsigned char*) password, LENGTH, testHash);
   //printf("CPU calc: %u\n", testHash);

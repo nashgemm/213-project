@@ -268,18 +268,21 @@ __device__ void GPU_MD5_Final(unsigned char *result, GPU_MD5_CTX *ctx) {
 }
 
 
-__global__ void computeMD5(uint8_t* passwordHash, bool* checker) {
-  printf("made it into computeMD5");
+__global__ void computeMD5(uint8_t* passwordHash, bool* checker, int offset) {
+  //printf("made it into computeMD5");
+  int new_block_id = blockIdx.x + offset;
+  
   char password[LENGTH+1];
   password[0] = threadIdx.x % NUM_CHAR;
-  password[1] = blockIdx.x*2 + (threadIdx.x / NUM_CHAR);
-  password[2] = (blockIdx.x / 18) % NUM_CHAR;
-  password[3] = (blockIdx.x / 648) % NUM_CHAR;
-  password[4] = (blockIdx.x / 23328) % NUM_CHAR;
-  password[5] = (blockIdx.x / 839808) % NUM_CHAR;
-  password[6] = (blockIdx.x / 30233088) % NUM_CHAR;
-  password[7] = blockIdx.x / 108839168;
+  password[1] = new_block_id*2 + (threadIdx.x / NUM_CHAR);
+  password[2] = (new_block_id / 18) % NUM_CHAR;
+  password[3] = (new_block_id / 648) % NUM_CHAR;
+  password[4] = (new_block_id / 23328) % NUM_CHAR;
+  password[5] = (new_block_id / 839808) % NUM_CHAR;
+  password[6] = (new_block_id / 30233088) % NUM_CHAR;
+  password[7] = new_block_id / 108839168;
   password[8] = '\0';
+  printf("%s\n",password);
   
   //Initialize the MD5 context
   GPU_MD5_CTX context;
@@ -292,7 +295,7 @@ __global__ void computeMD5(uint8_t* passwordHash, bool* checker) {
   uint8_t output[MD5_DIGEST_LENGTH];
   GPU_MD5_Final(output, &context);
 
-  printf("finished computing the hash");
+  //printf("finished computing the hash");
   int match = 0;
   
   for(size_t i=0; i < MD5_DIGEST_LENGTH; i++) {
@@ -304,13 +307,12 @@ __global__ void computeMD5(uint8_t* passwordHash, bool* checker) {
   if (match == MD5_DIGEST_LENGTH) {
     *checker = true;
   }
-  printf("exiting the compute hash function");
 }
 
 int main() {
-  char* password= "aaaaaabb";
+  char password[9]= "apricot3";
   uint8_t passwordHash[MD5_DIGEST_LENGTH+1];
-  bool* checker = (bool*)malloc(sizeof(bool));;
+  bool* checker = (bool*)malloc(sizeof(bool));
   *checker = false;
 
   //  printf("Enter in your test password: ");
@@ -322,11 +324,11 @@ int main() {
     printf("%x", passwordHash[i]);
   }
   
-  uint8_t* gpu_testHash;
+  uint8_t* gpu_passwordHash;
   bool* gpu_checker;
   
-  if(cudaMalloc(&gpu_testHash, (sizeof(uint8_t)* MD5_DIGEST_LENGTH) +1) != cudaSuccess) {
-    fprintf(stderr, "Failed to allocate memory for testHash\n");
+  if(cudaMalloc(&gpu_passwordHash, (sizeof(uint8_t)* MD5_DIGEST_LENGTH) +1) != cudaSuccess) {
+    fprintf(stderr, "Failed to allocate memory for passwordHash\n");
     exit(2);
   }
   
@@ -335,7 +337,7 @@ int main() {
     exit(2);
   }
   
-  if(cudaMemcpy(gpu_testHash, passwordHash, (sizeof(uint8_t) * MD5_DIGEST_LENGTH) + 1,  cudaMemcpyHostToDevice) != cudaSuccess) {
+  if(cudaMemcpy(gpu_passwordHash, passwordHash, (sizeof(uint8_t) * MD5_DIGEST_LENGTH) + 1,  cudaMemcpyHostToDevice) != cudaSuccess) {
     fprintf(stderr, "Failed to copy testHash to the GPU\n");
   }
   
@@ -347,7 +349,21 @@ int main() {
   // printf("called MD5 in CPU");
   //maybe make sure that's the number of blocks we want?
   size_t NUM_BLOCKS = pow(NUM_CHAR, LENGTH)/THREADS_PER_BLOCK;
-  computeMD5<<<NUM_BLOCKS,THREADS_PER_BLOCK>>>(gpu_testHash, gpu_checker);
+  printf("\n%u\n", NUM_BLOCKS);
+  printf("\n%u\n", THREADS_PER_BLOCK);
+  int i = 0;
+  for(; i < 10547; i++) {
+    computeMD5<<<50000,THREADS_PER_BLOCK>>>(gpu_passwordHash, gpu_checker, i*50000);
+    // if(cudaMemcpy(checker, gpu_checker, sizeof(bool),  cudaMemcpyDeviceToHost) != cudaSuccess) {
+    //  fprintf(stderr, "Failed to copy checker from the GPU\n");
+    // }
+    if (*checker) {
+      break;
+    }
+  }
+  if (!(*checker)) {
+  computeMD5<<<26384, THREADS_PER_BLOCK>>>(gpu_passwordHash, gpu_checker, i*50000);
+  }
   
   if(cudaDeviceSynchronize() != cudaSuccess){
     fprintf(stderr, "the error came from inside the kernel...comes back\n");
@@ -364,6 +380,7 @@ int main() {
   }
 
   cudaFree(gpu_checker);
-  cudaFree(gpu_testHash);
+  printf("checker: %d\n", *checker);
+  cudaFree(gpu_passwordHash);
   return 0;
 }
