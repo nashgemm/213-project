@@ -12,6 +12,7 @@
 #define THREADS_PER_BLOCK 72
 #define LENGTH 8
 #define NUM_CHAR 36
+
 typedef unsigned int GPU_MD5_u32plus;
  
 typedef struct {
@@ -267,22 +268,33 @@ __device__ void GPU_MD5_Final(unsigned char *result, GPU_MD5_CTX *ctx) {
     memset(ctx, 0, sizeof(*ctx));
 }
 
+__device__ char computeChar(int i) {
+  i = i % NUM_CHAR;
+  if (i < 26) {
+     return (char) i + 97;
+} else {
+     return (char) i + 22;
+  }
+}
+
 
 __global__ void computeMD5(uint8_t* passwordHash, bool* checker, int offset) {
   //printf("made it into computeMD5");
   int new_block_id = blockIdx.x + offset;
   
   char password[LENGTH+1];
-  password[0] = threadIdx.x % NUM_CHAR;
-  password[1] = new_block_id*2 + (threadIdx.x / NUM_CHAR);
-  password[2] = (new_block_id / 18) % NUM_CHAR;
-  password[3] = (new_block_id / 648) % NUM_CHAR;
-  password[4] = (new_block_id / 23328) % NUM_CHAR;
-  password[5] = (new_block_id / 839808) % NUM_CHAR;
-  password[6] = (new_block_id / 30233088) % NUM_CHAR;
-  password[7] = new_block_id / 108839168;
+  password[7] = computeChar(threadIdx.x);
+  password[6] = computeChar(new_block_id*2 + (threadIdx.x / NUM_CHAR));
+  password[5] = computeChar(new_block_id / 18);
+  password[4] = computeChar(new_block_id / 648);
+  password[3] = computeChar(new_block_id / 23328);
+  password[2] = computeChar(new_block_id / 839808);
+  password[1] = computeChar(new_block_id / 30233088);
+  password[0] = computeChar(new_block_id / 108839168);
   password[8] = '\0';
-  printf("%s\n",password);
+  //if (threadIdx.x == 0) {
+  //printf("%s\n",password);
+  //}
   
   //Initialize the MD5 context
   GPU_MD5_CTX context;
@@ -309,8 +321,75 @@ __global__ void computeMD5(uint8_t* passwordHash, bool* checker, int offset) {
   }
 }
 
+typedef struct password_entry_node {
+  char pwd[9];
+  uint8_t password_md5[MD5_DIGEST_LENGTH];
+  struct password_entry_node* next;
+} password_entry_node_t;
+
+typedef struct password_entry {
+  char pwd[9];
+  uint8_t password_md5[MD5_DIGEST_LENGTH];
+} password_entry_t;
+
+/**
+ * Read a file of username and MD5 passwords. Return a linked list
+ * of entries.
+ * \param filename  The path to the password file
+ * \returns         A pointer to the first node in the password list
+ */
+password_entry_t* read_password_file(const char* filename) {
+  // Open the password file
+  FILE* password_file = fopen(filename, "r");
+  if (password_file == NULL) {
+    perror("opening password file");
+    exit(2);
+  }
+  
+  // Keep track of the current list
+  password_entry_node_t* lst = NULL;
+  int tally = 0;
+  
+  // Read until we hit the end of the file
+  while (!feof(password_file)) {
+    //add a tally count for eventual size of the array
+    tally++;
+    // Make space for a new node
+    password_entry_node_t* newnode = (password_entry_node_t*)malloc(sizeof(password_entry_node_t));
+    
+    // Make space to hold the popular password unhashed
+    char * passwd = (char *) malloc(sizeof(char) * 9);
+    uint8_t * md5_string = (uint8_t *) malloc(sizeof(uint8_t) * MD5_DIGEST_LENGTH * 2 + 1);
+    
+    // Try to read. The space in the format string is required to eat the newline
+    if(fscanf(password_file, "%s", passwd) != 1) {
+      fprintf(stderr, "Error reading password file: malformed line\n");
+      exit(2);
+    }
+    
+    // Convert the passwd to a MD5 and store it
+    MD5((unsigned char*) passwd, LENGTH,  md5_string);
+    
+    // Add the new node to the front of the list
+    strcpy(newnode->pwd, passwd);
+    memcpy(newnode->password_md5, md5_string, MD5_DIGEST_LENGTH);
+    newnode->next = lst;
+    lst = newnode;
+  }
+  password_entry_t passwords[tally];
+  password_entry_node_t* cur = lst;
+  int i;
+  while(cur != NULL) {
+    strncpy(passwords[i].pwd, cur->pwd, 9);
+    strncpy(passwords[i].password_md5, cur->password_md5, MD5_DIGEST_LENGTH);
+    i++;
+    cur = cur->next;
+  }
+  return passwords;
+}
+
 int main() {
-  char password[9]= "apricot3";
+  char password[9]= "apricota";
   uint8_t passwordHash[MD5_DIGEST_LENGTH+1];
   bool* checker = (bool*)malloc(sizeof(bool));
   *checker = false;
@@ -352,17 +431,21 @@ int main() {
   printf("\n%u\n", NUM_BLOCKS);
   printf("\n%u\n", THREADS_PER_BLOCK);
   int i = 0;
-  for(; i < 10547; i++) {
+  for(; i < 783641; i++) {
     computeMD5<<<50000,THREADS_PER_BLOCK>>>(gpu_passwordHash, gpu_checker, i*50000);
     // if(cudaMemcpy(checker, gpu_checker, sizeof(bool),  cudaMemcpyDeviceToHost) != cudaSuccess) {
     //  fprintf(stderr, "Failed to copy checker from the GPU\n");
     // }
-    if (*checker) {
-      break;
+    //if (*checker) {
+    //  break;
+    //}
+    if(cudaDeviceSynchronize() != cudaSuccess){
+    fprintf(stderr, "the error came from inside the kernel...comes back\n");
+    fprintf(stderr, "%s\n", cudaGetErrorString(cudaPeekAtLastError()));
     }
   }
   if (!(*checker)) {
-  computeMD5<<<26384, THREADS_PER_BLOCK>>>(gpu_passwordHash, gpu_checker, i*50000);
+  computeMD5<<<32048, THREADS_PER_BLOCK>>>(gpu_passwordHash, gpu_checker, i*50000);
   }
   
   if(cudaDeviceSynchronize() != cudaSuccess){
@@ -384,3 +467,4 @@ int main() {
   cudaFree(gpu_passwordHash);
   return 0;
 }
+
