@@ -271,48 +271,13 @@ __device__ void GPU_MD5_Final(unsigned char *result, GPU_MD5_CTX *ctx) {
 __device__ char computeChar(int i) {
   i = i % NUM_CHAR;
   if (i < 26) {
-     return (char) i + 97;
-} else {
-     return (char) i + 22;
+    return (char) i + 97;
+  } else {
+    return (char) i + 22;
   }
 }
 
-typedef struct password_entry_node {
-  char pwd[9];
-  struct password_entry_node* next;
-} password_entry_node_t;
 
-typedef struct password_entry {
-  char pwd[9];
-  uint8_t password_md5[MD5_DIGEST_LENGTH];
-} password_entry_t;
-
-__global__ void checkFilePasswords(uint8_t* passwordHash, bool* checker, password_entry_t* passwords){
-  int index = blockIdx.x*THREADS_PER_BLOCK + threadIdx.x;
-
-  //Initialize the MD5 context
-  GPU_MD5_CTX context;
-  GPU_MD5_Init(&context);
-
-  //add our data to MD5
-  GPU_MD5_Update(&context, passwords[index].pwd, LENGTH);
-
-  //Finish
-  GPU_MD5_Final(passwords[index].password_md5, &context);
-
-  //printf("finished computing the hash");
-  int match = 0;
-  
-  for(size_t i=0; i < MD5_DIGEST_LENGTH; i++) {
-    if (passwords[index].password_md5[i] == passwordHash[i]) {
-      match++;
-    }
-  }
-
-  if (match == MD5_DIGEST_LENGTH) {
-    *checker = true;
-  }
-}
 __global__ void computeMD5(uint8_t* passwordHash, bool* checker, int offset) {
   //printf("made it into computeMD5");
   int new_block_id = blockIdx.x + offset;
@@ -328,10 +293,9 @@ __global__ void computeMD5(uint8_t* passwordHash, bool* checker, int offset) {
   password[0] = computeChar(new_block_id / 108839168);
   password[8] = '\0';
   /*
-  if (threadIdx.x == 0) {
-  printf("%s\n",password);
-  }*/
-
+    if (threadIdx.x == 0) {
+    printf("%s\n",password);
+    }*/
   
   //Initialize the MD5 context
   GPU_MD5_CTX context;
@@ -359,12 +323,10 @@ __global__ void computeMD5(uint8_t* passwordHash, bool* checker, int offset) {
   }
 }
 
-
 typedef struct password_entry {
   char pwd[LENGTH+1];
   uint8_t password_md5[MD5_DIGEST_LENGTH];
 } password_entry_t;
-
 
 /**
  * Read a file of username and MD5 passwords. Return a linked list
@@ -372,9 +334,7 @@ typedef struct password_entry {
  * \param filename  The path to the password file
  * \returns         A pointer to the first node in the password list
  */
-
 password_entry* read_password_file(const char* filename, int *size) {
-
   // Open the password file
   FILE* password_file = fopen(filename, "r");
   if (password_file == NULL) {
@@ -384,10 +344,10 @@ password_entry* read_password_file(const char* filename, int *size) {
 
   char length[LENGTH];
   // Get the first line containing the number of passwords
-    if(fscanf(password_file, " %s ", length) != 1) {
-      fprintf(stderr, "Error reading password file: malformed line\n");
-      exit(2);
-      }
+  if(fscanf(password_file, " %s ", length) != 1) {
+    fprintf(stderr, "Error reading password file: malformed line\n");
+    exit(2);
+  }
 
   *size = atoi(length);
 
@@ -396,10 +356,11 @@ password_entry* read_password_file(const char* filename, int *size) {
 
   // Read until we hit the end of the file
   while (!feof(password_file) && i < *size) {
-  i++;
+    i++;
   
     // Make space to hold the popular password unhashed
     char * passwd = (char *) malloc(sizeof(char) * 9);
+    uint8_t * md5_string = (uint8_t *) malloc(sizeof(uint8_t) * MD5_DIGEST_LENGTH * 2 + 1);
     
     // Try to read. The space in the format string is required to eat the newline
     if(fscanf(password_file, " %s ", passwd) != 1) {
@@ -416,16 +377,15 @@ password_entry* read_password_file(const char* filename, int *size) {
   }
 
   return passwords;
-
 }
 
 
 __global__ void popularPasswords(uint8_t* passwordHash, password_entry* passwordEntries, bool* checker) {
 
-   int index = (blockIdx.x * THREADS_PER_BLOCK) + threadIdx.x;
-   uint8_t* passwordEntry = passwordEntries[index].password_md5;
+  int index = (blockIdx.x * THREADS_PER_BLOCK) + threadIdx.x;
+  uint8_t* passwordEntry = passwordEntries[index].password_md5;
    
-   int match = 0;
+  int match = 0;
   
   for(size_t i=0; i < MD5_DIGEST_LENGTH; i++) {
     if (passwordHash[i] == passwordEntry[i]) {
@@ -446,41 +406,25 @@ int main() {
   uint8_t passwordHash[MD5_DIGEST_LENGTH+1];
   bool* checker = (bool*)malloc(sizeof(bool));
   *checker = false;
-
   int size = 0;
-//  char passwordFile[MD5_DIGEST_LENGTH];
+  //  char passwordFile[MD5_DIGEST_LENGTH];
 
+  ///home/nashgemm/CSC213/213-project/popularpwds
+  char* filename = "/home/yetterka/csc213/213-project/popularpwds";
 
-    char* filename = "/home/nashgemm/CSC213/213-project/popularpwds";
-
-    printf("Enter in your test password: ");
-   scanf("%s", &password);
+  printf("Enter in your test password: ");
+  scanf("%s", &password);
 
   // printf("Enter password file: ");
   // scanf("%s", &passwordFile);
 
-   password_entry* passwordEntries = read_password_file(filename, &size);
+  password_entry* passwordEntries = read_password_file(filename, &size);
 
-MD5((unsigned char*) password, LENGTH, passwordHash);
+  MD5((unsigned char*) password, LENGTH, passwordHash);
   
   for(size_t i=0; i < MD5_DIGEST_LENGTH; i++) {
-   // printf("%x", passwordHash[i]);
+    // printf("%x", passwordHash[i]);
   }
-
-  password_entry_node_t* lst = (password_entry_node_t*) malloc(sizeof(password_entry_node_t));
-  int tally = read_password_file(filename, lst);
-  password_entry_t passwords[tally];
-  from_list_to_array(lst, passwords);
-
-  password_entry_t* gpu_passwords;
-  if(cudaMalloc(&gpu_passwords, (sizeof(password_entry_t)*tally)) != cudaSuccess) {
-      fprintf(stderr, "Failed to allocate memory for passwords\n");
-      exit(2);
-    }
-    if(cudaMemcpy(gpu_passwords, passwords, (sizeof(password_entry_t)*tally),  cudaMemcpyHostToDevice) != cudaSuccess) {
-      fprintf(stderr, "Failed to copy passwords to the GPU\n");
-    }
-
   
   uint8_t* gpu_passwordHash;
   bool* gpu_checker;
@@ -492,15 +436,14 @@ MD5((unsigned char*) password, LENGTH, passwordHash);
     exit(2);
   }
   /*
-  if(cudaMalloc(&gpu_size, sizeof(int)) != cudaSuccess) {
+    if(cudaMalloc(&gpu_size, sizeof(int)) != cudaSuccess) {
     fprintf(stderr, "Failed to allocate memory for passwordEntries Size\n");
     exit(2);
-  }
-  if(cudaMemcpy(&gpu_size, &size, sizeof(int),  cudaMemcpyHostToDevice) != cudaSuccess) {
+    }
+    if(cudaMemcpy(&gpu_size, &size, sizeof(int),  cudaMemcpyHostToDevice) != cudaSuccess) {
     fprintf(stderr, "Failed to copy size to the GPU\n");
-  }
-
-*/
+    }
+  */
   if(cudaMemcpy(gpu_passwordEntries, passwordEntries, sizeof(password_entry) * size,  cudaMemcpyHostToDevice) != cudaSuccess) {
     fprintf(stderr, "Failed to copy passwordEntries to the GPU\n");
   }
@@ -523,20 +466,13 @@ MD5((unsigned char*) password, LENGTH, passwordHash);
   if(cudaMemcpy(gpu_checker, checker, sizeof(bool),  cudaMemcpyHostToDevice) != cudaSuccess) {
     fprintf(stderr, "Failed to copy checker to the GPU\n");
   }
-
-       
-  checkFilePasswords<<<1, THREADS_PER_BLOCK>>>(gpu_passwordHash, gpu_checker, gpu_passwords); 
-   if(cudaDeviceSynchronize() != cudaSuccess){
-    fprintf(stderr, "the error came the call to checkFilePasswords\n");
-    fprintf(stderr, "%s\n", cudaGetErrorString(cudaPeekAtLastError()));
-  }
   
   
-/* EDIT OUT PRINTING
-printf("called MD5 in CPU");
-  printf("\n%u\n", NUM_BLOCKS);
-  printf("\n%u\n", THREADS_PER_BLOCK);
-*/
+  /* EDIT OUT PRINTING
+     printf("called MD5 in CPU");
+     printf("\n%u\n", NUM_BLOCKS);
+     printf("\n%u\n", THREADS_PER_BLOCK);
+  */
 
   size_t NUM_BLOCKS = pow(NUM_CHAR, LENGTH)/THREADS_PER_BLOCK;
 
@@ -548,64 +484,62 @@ printf("called MD5 in CPU");
   }
   
   if (*checker == true) {
-     printf("We found the password on the GPU from the popular file\n");
+    printf("We found the password on the GPU from the popular file\n");
   } else {
 
-  int i = 0;
-  for(; i < 783641; i++) {
-    computeMD5<<<50000,THREADS_PER_BLOCK>>>(gpu_passwordHash, gpu_checker, i*50000);
-    if(cudaMemcpy(checker, gpu_checker, sizeof(bool),  cudaMemcpyDeviceToHost) != cudaSuccess) {
-     fprintf(stderr, "Failed to copy checker from the GPU\n");
+    int i = 0;
+    for(; i < 783641; i++) {
+      computeMD5<<<50000,THREADS_PER_BLOCK>>>(gpu_passwordHash, gpu_checker, i*50000);
+      if(cudaMemcpy(checker, gpu_checker, sizeof(bool),  cudaMemcpyDeviceToHost) != cudaSuccess) {
+        fprintf(stderr, "Failed to copy checker from the GPU\n");
+      }
+      if (*checker) {
+        break;
+      }
+      if(cudaDeviceSynchronize() != cudaSuccess){
+        fprintf(stderr, "the error came from inside the kernel...comes back\n");
+        fprintf(stderr, "%s\n", cudaGetErrorString(cudaPeekAtLastError()));
+      }
     }
-    if (*checker) {
-      break;
+    if (!(*checker)) {
+      computeMD5<<<32048, THREADS_PER_BLOCK>>>(gpu_passwordHash, gpu_checker, i*50000);
     }
+  
     if(cudaDeviceSynchronize() != cudaSuccess){
-    fprintf(stderr, "the error came from inside the kernel...comes back\n");
-    fprintf(stderr, "%s\n", cudaGetErrorString(cudaPeekAtLastError()));
+      fprintf(stderr, "the error came from inside the kernel...comes back\n");
+      fprintf(stderr, "%s\n", cudaGetErrorString(cudaPeekAtLastError()));
+    }
+  
+    // // COPY STUFF BACK FROM THE GPU
+    if(cudaMemcpy(checker, gpu_checker, sizeof(bool),  cudaMemcpyDeviceToHost) != cudaSuccess) {
+      fprintf(stderr, "Failed to copy checker from the GPU\n");
+    }
+  
+    if (*checker == true) {
+      printf("We found the password on the GPU the brute force time \n");
+      // Add the password to the list.
+      // Timings
+      FILE* password_file = fopen(filename, "a");
+      if (password_file == NULL) {
+        perror("opening password file");
+        exit(2);
+      }
+      fprintf(password_file, "%s\n", password);
+      fclose(password_file);
+            
+      FILE* password_file_size = fopen(filename, "r+");
+      if (password_file_size == NULL) {
+        perror("opening password file");
+        exit(2);
+      }
+      fprintf(password_file_size, "%d\n", size+1);
+      fclose(password_file_size);
+      
     }
   }
-  if (!(*checker)) {
-  computeMD5<<<32048, THREADS_PER_BLOCK>>>(gpu_passwordHash, gpu_checker, i*50000);
-  }
-  
-  if(cudaDeviceSynchronize() != cudaSuccess){
-    fprintf(stderr, "the error came from inside the kernel...comes back\n");
-    fprintf(stderr, "%s\n", cudaGetErrorString(cudaPeekAtLastError()));
-  }
-  
- // COPY STUFF BACK FROM THE GPU
-  if(cudaMemcpy(checker, gpu_checker, sizeof(bool),  cudaMemcpyDeviceToHost) != cudaSuccess) {
-    fprintf(stderr, "Failed to copy checker from the GPU\n");
-  }
-  
-  if (*checker == true) {
-     printf("We found the password on the GPU the brute force time \n");
-     // Add the password to the list.
-     // Timings
-       FILE* password_file = fopen(filename, "a");
-  if (password_file == NULL) {
-    perror("opening password file");
-    exit(2);
-  }
-        fprintf(password_file, "%s\n", password);
-        fclose(password_file);
-  /*      
-  FILE* password_file_size = fopen(filename, "w");
-  if (password_file == NULL) {
-    perror("opening password file");
-    exit(2);
-  }
-  fprintf(password_file_size, "%s\n", size+1);
-  fclose(password_file_size);
-    */   
-  }
-}
   cudaFree(gpu_passwordEntries);
   //cudaFree(gpu_size);
   cudaFree(gpu_checker);
-  cudaFree(gpu_passwords);  
-  printf("checker: %d\n", *checker);
   cudaFree(gpu_passwordHash);
   return 0;
 }
