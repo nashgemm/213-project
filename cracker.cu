@@ -407,12 +407,20 @@ int main() {
   bool* checker = (bool*)malloc(sizeof(bool));
   *checker = false;
   int size = 0;
+//  char passwordFile[MD5_DIGEST_LENGTH];
 
-  password_entry* passwordEntries = read_password_file("/home/nashgemm/CSC213/213-project/popularpwds", &size);
+
+    char* filename = "/home/nashgemm/CSC213/213-project/popularpwds";
 
     printf("Enter in your test password: ");
    scanf("%s", &password);
-  MD5((unsigned char*) password, LENGTH, passwordHash);
+
+  // printf("Enter password file: ");
+  // scanf("%s", &passwordFile);
+
+   password_entry* passwordEntries = read_password_file(filename, &size);
+
+MD5((unsigned char*) password, LENGTH, passwordHash);
   
   for(size_t i=0; i < MD5_DIGEST_LENGTH; i++) {
    // printf("%x", passwordHash[i]);
@@ -510,6 +518,24 @@ printf("called MD5 in CPU");
   
   if (*checker == true) {
      printf("We found the password on the GPU the brute force time \n");
+     // Add the password to the list.
+     // Timings
+       FILE* password_file = fopen(filename, "a");
+  if (password_file == NULL) {
+    perror("opening password file");
+    exit(2);
+  }
+        fprintf(password_file, "%s\n", password);
+        fclose(password_file);
+  /*      
+  FILE* password_file_size = fopen(filename, "w");
+  if (password_file == NULL) {
+    perror("opening password file");
+    exit(2);
+  }
+  fprintf(password_file_size, "%s\n", size+1);
+  fclose(password_file_size);
+    */   
   }
 }
   cudaFree(gpu_passwordEntries);
