@@ -379,6 +379,88 @@ password_entry* read_password_file(const char* filename, int *size) {
   return passwords;
 }
 
+typedef struct dictionary_entry {
+  char word[LENGTH+1];
+  struct dictionary_entry * next;
+} dictionary_entry_t;
+
+
+/**
+
+
+ */
+dictionary_entry * parse_dictionary (const char* filename, int * eight, int * seven, int * six, int * five, int * four) {
+  // Open the dictionary file
+  FILE* dictionary_file = fopen(filename, "r");
+  if (dictionary_file == NULL) {
+    perror("opening dictionary file");
+    exit(2);
+  }
+
+  int eight_size = 0;
+  int seven_size = 0;
+  int six_size = 0;
+  int five_size = 0;
+  int four_size = 0;
+  
+  dictionary_entry* dictionary = NULL;
+  
+  // Read until we hit the end of the file
+  while (!feof(dictionary_file)) {
+
+    char word[LENGTH*2];
+    // Try to read. The space in the format string is required to eat the newline
+    if(fscanf(dictionary_file, " %s ", word) != 1) {
+      fprintf(stderr, "Error reading password file: malformed line\n");
+      exit(2);
+    }
+
+    int len = strlen(word);
+    word[len] = '\0';
+    
+    switch (len) {
+    case 8:
+      eight_size++;
+      break;
+
+    case 7:
+      seven_size++;
+      break;
+
+    case 6:
+      six_size++;
+      break;
+
+    case 5:
+      five_size++;
+      break;
+
+    case 4:
+      four_size++;
+      break;
+    }
+
+
+    if (len < 9 && len > 3) {
+      // Make space to hold the popular password unhashed
+      dictionary_entry* entry = (dictionary_entry*) malloc(sizeof(dictionary_entry));
+      strcpy(entry->word, word);
+      
+      // Add the new node to the front of the list
+      entry->next = dictionary;
+      dictionary = entry;
+    }
+  }
+
+  *eight = eight_size;
+  *seven = seven_size;
+  *six = six_size;
+  *five = five_size;
+  *four = four_size;
+  
+  return dictionary;
+}
+
 
 __global__ void popularPasswords(uint8_t* passwordHash, password_entry* passwordEntries, bool* checker) {
 
@@ -409,8 +491,15 @@ int main() {
   int size = 0;
   //  char passwordFile[MD5_DIGEST_LENGTH];
 
+  int four_size = 0;
+  int five_size = 0;
+  int six_size = 0;
+  int seven_size = 0;
+  int eight_size = 0;
+
   ///home/nashgemm/CSC213/213-project/popularpwds
-  char* filename = "/home/yetterka/csc213/213-project/popularpwds";
+  char* password_filename = "/home/yetterka/csc213/213-project/popular-passwords.txt";
+  char* dictionary_filename = "/home/yetterka/csc213/213-project/dictionary.txt";
 
   printf("Enter in your test password: ");
   scanf("%s", &password);
@@ -418,7 +507,18 @@ int main() {
   // printf("Enter password file: ");
   // scanf("%s", &passwordFile);
 
-  password_entry* passwordEntries = read_password_file(filename, &size);
+  password_entry* passwordEntries = read_password_file(password_filename, &size);
+
+  dictionary_entry * dictionaryEntries = parse_dictionary(dictionary_filename, &eight_size, &seven_size, &six_size, &five_size, &four_size);
+
+  /*
+  printf(" we have %d eight length \n we have %d seven length \n we have %d six length \n we have %d five length \n we have %d four length \n total is %d\n", eight_size, seven_size, six_size, five_size, four_size, total);
+  
+  while (dictionaryEntries != NULL) {
+    printf("%s\n", dictionaryEntries->word);
+    dictionaryEntries = dictionaryEntries->next;
+  }
+  */
 
   MD5((unsigned char*) password, LENGTH, passwordHash);
   
@@ -519,7 +619,7 @@ int main() {
       printf("We found the password on the GPU the brute force time \n");
       // Add the password to the list.
       // Timings
-      FILE* password_file = fopen(filename, "a");
+      FILE* password_file = fopen(password_filename, "a");
       if (password_file == NULL) {
         perror("opening password file");
         exit(2);
@@ -527,7 +627,7 @@ int main() {
       fprintf(password_file, "%s\n", password);
       fclose(password_file);
             
-      FILE* password_file_size = fopen(filename, "r+");
+      FILE* password_file_size = fopen(password_filename, "r+");
       if (password_file_size == NULL) {
         perror("opening password file");
         exit(2);
