@@ -381,6 +381,7 @@ password_entry* read_password_file(const char* filename, int *size) {
 
 typedef struct dictionary_entry {
   char word[LENGTH+1];
+  int length;
   struct dictionary_entry * next;
 } dictionary_entry_t;
 
@@ -445,6 +446,7 @@ dictionary_entry * parse_dictionary (const char* filename, int * eight, int * se
       // Make space to hold the popular password unhashed
       dictionary_entry* entry = (dictionary_entry*) malloc(sizeof(dictionary_entry));
       strcpy(entry->word, word);
+      entry->length = len;
       
       // Add the new node to the front of the list
       entry->next = dictionary;
@@ -511,6 +513,96 @@ int main() {
 
   dictionary_entry * dictionaryEntries = parse_dictionary(dictionary_filename, &eight_size, &seven_size, &six_size, &five_size, &four_size);
 
+  char* words_len_four[four_size];
+  char* words_len_five[five_size];
+  char* words_len_six[six_size];
+  char* words_len_seven[seven_size];
+  char* words_len_eight[eight_size];\
+
+  int fourCount = 0;
+  int fiveCount = 0;
+  int sixCount = 0;
+  int sevenCount = 0;
+  int eightCount = 0;
+
+  dictionary_entry* cur = dictionaryEntries;
+  while(cur != NULL){
+    int len = cur->length;
+    switch(len){
+    case 4:
+      words_len_four[fourCount++] = cur->word;
+      break;
+
+    case 5:
+     words_len_five[fiveCount++] = cur->word;
+      break;
+
+    case 6:
+      words_len_six[sixCount++]= cur->word;
+      break;
+
+    case 7:
+    words_len_seven[sevenCount++]= cur->word;
+      break;
+
+    case 8:
+      words_len_eight[eightCount++]= cur->word;
+      break;
+    }
+    cur = cur->next;
+  }
+
+  char** gpu_len_four;
+  char** gpu_len_five;
+  char** gpu_len_six;
+  char** gpu_len_seven;
+  char** gpu_len_eight;
+
+  if(cudaMalloc(&gpu_len_four, (sizeof(char)* 5) * four_size) != cudaSuccess) {
+    fprintf(stderr, "Failed to allocate memory for gpu_len_4\n");
+    exit(2);
+  }
+  
+  if(cudaMalloc(&gpu_len_five, (sizeof(char)* 6) * five_size) != cudaSuccess) {
+    fprintf(stderr, "Failed to allocate memory for gpu_len_\n");
+    exit(2);
+  }
+   
+  if(cudaMalloc(&gpu_len_six, (sizeof(char)* 7)* six_size) != cudaSuccess) {
+    fprintf(stderr, "Failed to allocate memory forgpu_len_4\n");
+    exit(2);
+  }
+   
+  if(cudaMalloc(&gpu_len_seven, (sizeof(char)* 8) * seven_size) != cudaSuccess) {
+    fprintf(stderr, "Failed to allocate memory forgpu_len_4\n");
+    exit(2);
+  }
+  if(cudaMalloc(&gpu_len_eight, (sizeof(char)* 9) * eight_size) != cudaSuccess) {
+    fprintf(stderr, "Failed to allocate memory forgpu_len_4\n");
+    exit(2);
+  } 
+  
+
+ if(cudaMemcpy(gpu_len_four, words_len_four, (sizeof(char)* 5) * four_size,  cudaMemcpyHostToDevice) != cudaSuccess) {
+    fprintf(stderr, "Failed to copy testHash to the GPU\n");
+  }
+
+if(cudaMemcpy(gpu_len_five, words_len_five, (sizeof(char)* 6) * five_size,  cudaMemcpyHostToDevice) != cudaSuccess) {
+    fprintf(stderr, "Failed to copy testHash to the GPU\n");
+  }
+ 
+if(cudaMemcpy(gpu_len_six, words_len_six, (sizeof(char)* 7) * six_size,  cudaMemcpyHostToDevice) != cudaSuccess) {
+    fprintf(stderr, "Failed to copy testHash to the GPU\n");
+  }
+ 
+if(cudaMemcpy(gpu_len_seven, words_len_seven, (sizeof(char)* 8) * seven_size,  cudaMemcpyHostToDevice) != cudaSuccess) {
+    fprintf(stderr, "Failed to copy testHash to the GPU\n");
+  }
+ 
+if(cudaMemcpy(gpu_len_eight, words_len_eight, (sizeof(char)* 9) * eight_size,  cudaMemcpyHostToDevice) != cudaSuccess) {
+    fprintf(stderr, "Failed to copy testHash to the GPU\n");
+  }
+  
   /*
   printf(" we have %d eight length \n we have %d seven length \n we have %d six length \n we have %d five length \n we have %d four length \n total is %d\n", eight_size, seven_size, six_size, five_size, four_size, total);
   
