@@ -6,6 +6,8 @@
 #include <SDL.h>
 #include <string.h>
 #include <openssl/md5.h>
+#include <sys/time.h>
+#include <time.h>
 
 // CITE CODE:  http://openwall.info/wiki/people/solar/software/public-domain-source-code/md5 AND CHARLIE + MENTORS
 
@@ -97,6 +99,12 @@ typedef struct dictionary_entry {
 } dictionary_entry_t;
 
 /**
+ * Get the time in milliseconds since UNIX epoch
+ * Taken from Charlie's util.c in the worm lab
+ */
+size_t time_ms();
+
+/**
  * Read a file of username and MD5 passwords. 
  * Return a linked list of entries.
  */
@@ -136,6 +144,7 @@ int main() {
 
   printf("Enter in your test password: ");
   scanf("%s", &password);
+  size_t start_time = time_ms();
   MD5((unsigned char*) password, LENGTH, passwordHash);
   
   // printf("Enter password file: ");
@@ -310,7 +319,9 @@ int main() {
     // free(words_len_eight);
     
     if (*checker == true) {
-      printf("Password Found. Closing Program.\n");
+      size_t end_time = time_ms();
+      size_t total_time = end_time - start_time;
+      printf("It took %u milliseconds to find your password.\n", total_time);
     } else {
 
       //  num_blocks = (round((float) (seven_size * 10/ THREADS_PER_BLOCK))) + 1;
@@ -325,7 +336,9 @@ int main() {
       }
 
       if (*checker == true) {
-        printf("Password Found. Closing Program.\n");
+        size_t end_time = time_ms();
+        size_t total_time = end_time - start_time;
+        printf("It took %u milliseconds to find your password.\n", total_time);
       } else {
       
         printf("\nAPPROACH THREE: Brute Force \n");
@@ -357,7 +370,9 @@ int main() {
         }
   
         if (*checker == true) {
-          printf("Password Found. Closing Program.\n");
+          size_t end_time = time_ms();
+          size_t total_time = end_time - start_time;
+          printf("It took %u milliseconds to find your password.\n", total_time);
           // Add the password to the list.
           // Timings
           FILE* password_file = fopen(password_filename, "a");
@@ -389,6 +404,16 @@ int main() {
   return 0;
 }
 
+size_t time_ms() {
+  struct timeval tv;
+  if(gettimeofday(&tv, NULL) == -1) {
+    perror("gettimeofday");
+    exit(2);
+  }
+  
+  // Convert timeval values to milliseconds
+  return tv.tv_sec*1000 + tv.tv_usec/1000;
+}
 
 dictionary_entry * parse_dictionary (const char* filename, int * eight, int * seven, int * six, int * five, int * four) {
   // Open the dictionary file
@@ -819,3 +844,5 @@ __global__ void shorterPasswords(uint8_t* passwordHash, string * entries, int nu
   bool found = addNumbersToEnd(passwordHash, current, numDigits, endNumber, threadIdx.x);
   *checker = found;  
 }
+
+
