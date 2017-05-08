@@ -167,8 +167,8 @@ int main() {
     fprintf(stderr, "Failed to copy checker to the GPU\n");
   }
  
-   int num_blocks = round((float)size / THREADS_PER_BLOCK);
-   popularPasswords<<<num_blocks, THREADS_PER_BLOCK>>>(gpu_passwordHash, gpu_passwordEntries, gpu_checker);
+  int num_blocks = (round((float) (size / THREADS_PER_BLOCK))) + 1;
+  popularPasswords<<<num_blocks, THREADS_PER_BLOCK>>>(gpu_passwordHash, gpu_passwordEntries, gpu_checker);
 
   if(cudaDeviceSynchronize() != cudaSuccess){
     fprintf(stderr, "the error came from the first call to popular_passwords \n");
@@ -181,7 +181,9 @@ int main() {
   if (*checker == true) {
     printf("Password Found. Closing Program.\n");
   } else {
+
     printf("\nAPPROACH TWO: Add numbers to the end of dictionary words \n");
+    
     int four_size = 0;
     int five_size = 0;
     int six_size = 0;
@@ -223,7 +225,7 @@ int main() {
         break;
 
       case 8:
-        strcpy(words_len_eight[eightCount++].pwd, cur->word);
+        strcpy(words_len_eight[eightCount].pwd, cur->word);
         MD5((unsigned char*) cur->word, LENGTH,  words_len_eight[eightCount++].password_md5);
         break;
       }
@@ -240,48 +242,49 @@ int main() {
       fprintf(stderr, "Failed to allocate memory for gpu_len_4\n");
       exit(2);
     }
-  
-    if(cudaMalloc(&gpu_len_five, (sizeof(char)* 6) * five_size) != cudaSuccess) {
-      fprintf(stderr, "Failed to allocate memory for gpu_len_\n");
-      exit(2);
-    }
-   
-    if(cudaMalloc(&gpu_len_six, (sizeof(char)* 7)* six_size) != cudaSuccess) {
-      fprintf(stderr, "Failed to allocate memory forgpu_len_4\n");
-      exit(2);
-    }
-   
-    if(cudaMalloc(&gpu_len_seven, (sizeof(char)* 8) * seven_size) != cudaSuccess) {
-      fprintf(stderr, "Failed to allocate memory forgpu_len_4\n");
-      exit(2);
-    }
-    if(cudaMalloc(&gpu_len_eight, sizeof(password_entry) * eight_size) != cudaSuccess) {
-      fprintf(stderr, "Failed to allocate memory forgpu_len_4\n");
-      exit(2);
-    } 
-  
+
     if(cudaMemcpy(gpu_len_four, words_len_four, (sizeof(char)* 5) * four_size,  cudaMemcpyHostToDevice) != cudaSuccess) {
       fprintf(stderr, "Failed to copy testHash to the GPU\n");
     }
-
+  
+    if(cudaMalloc(&gpu_len_five, (sizeof(char)* 6) * five_size) != cudaSuccess) {
+      fprintf(stderr, "Failed to allocate memory for gpu_len_5\n");
+      exit(2);
+    }
+   
     if(cudaMemcpy(gpu_len_five, words_len_five, (sizeof(char)* 6) * five_size,  cudaMemcpyHostToDevice) != cudaSuccess) {
       fprintf(stderr, "Failed to copy testHash to the GPU\n");
     }
  
+    if(cudaMalloc(&gpu_len_six, (sizeof(char)* 7)* six_size) != cudaSuccess) {
+      fprintf(stderr, "Failed to allocate memory for gpu_len_6\n");
+      exit(2);
+    }
+   
     if(cudaMemcpy(gpu_len_six, words_len_six, (sizeof(char)* 7) * six_size,  cudaMemcpyHostToDevice) != cudaSuccess) {
       fprintf(stderr, "Failed to copy testHash to the GPU\n");
     }
- 
+
+    if(cudaMalloc(&gpu_len_seven, (sizeof(char)* 8) * seven_size) != cudaSuccess) {
+      fprintf(stderr, "Failed to allocate memory for gpu_len_7\n");
+      exit(2);
+    }
+
     if(cudaMemcpy(gpu_len_seven, words_len_seven, (sizeof(char)* 8) * seven_size,  cudaMemcpyHostToDevice) != cudaSuccess) {
       fprintf(stderr, "Failed to copy testHash to the GPU\n");
     }
+    
+    if(cudaMalloc(&gpu_len_eight, sizeof(password_entry) * eight_size) != cudaSuccess) {
+      fprintf(stderr, "Failed to allocate memory for gpu_len_8\n");
+      exit(2);
+    } 
  
-      if(cudaMemcpy(gpu_len_eight, words_len_eight, sizeof(password_entry) * eight_size,  cudaMemcpyHostToDevice) != cudaSuccess) {
+    if(cudaMemcpy(gpu_len_eight, words_len_eight, sizeof(password_entry) * eight_size,  cudaMemcpyHostToDevice) != cudaSuccess) {
       fprintf(stderr, "Failed to copy testHash to the GPU\n");
     }
 
-    num_blocks = round((float)eight_size+1 / THREADS_PER_BLOCK);
-    // popularPasswords<<<num_blocks,THREADS_PER_BLOCK>>>(gpu_passwordHash, gpu_len_eight, gpu_checker);
+    num_blocks = (round((float) (eight_size / THREADS_PER_BLOCK))) + 1;
+    popularPasswords<<<num_blocks,THREADS_PER_BLOCK>>>(gpu_passwordHash, gpu_len_eight, gpu_checker);
 
     if(cudaDeviceSynchronize() != cudaSuccess){
       fprintf(stderr, "the error came from the second call to popular_passwords \n");
@@ -301,7 +304,9 @@ int main() {
     if (*checker == true) {
       printf("Password Found. Closing Program.\n");
     } else {
+      
       printf("\nAPPROACH THREE: Brute Force \n");
+      
       int i = 0;
       for(; i < 783641; i++) {
         bruteForce<<<50000,THREADS_PER_BLOCK>>>(gpu_passwordHash, gpu_checker, i*50000);
@@ -359,125 +364,6 @@ int main() {
 
   return 0;
 }
-
-dictionary_entry * parse_dictionary (const char* filename, int * eight, int * seven, int * six, int * five, int * four) {
-  // Open the dictionary file
-  FILE* dictionary_file = fopen(filename, "r");
-  if (dictionary_file == NULL) {
-    perror("opening dictionary file");
-    exit(2);
-  }
-
-  int eight_size = 0;
-  int seven_size = 0;
-  int six_size = 0;
-  int five_size = 0;
-  int four_size = 0;
-  
-  dictionary_entry* dictionary = NULL;
-  
-  // Read until we hit the end of the file
-  while (!feof(dictionary_file)) {
-
-    char word[LENGTH*2];
-    // Try to read. The space in the format string is required to eat the newline
-    if(fscanf(dictionary_file, " %s ", word) != 1) {
-      fprintf(stderr, "Error reading password file: malformed line\n");
-      exit(2);
-    }
-
-    int len = strlen(word);
-    word[len] = '\0';
-    
-    switch (len) {
-    case 8:
-      eight_size++;
-      break;
-
-    case 7:
-      seven_size++;
-      break;
-
-    case 6:
-      six_size++;
-      break;
-
-    case 5:
-      five_size++;
-      break;
-
-    case 4:
-      four_size++;
-      break;
-    }
-
-
-    if (len < 9 && len > 3) {
-      // Make space to hold the popular password unhashed
-      dictionary_entry* entry = (dictionary_entry*) malloc(sizeof(dictionary_entry));
-      strcpy(entry->word, word);
-      entry->length = len;
-      
-      // Add the new node to the front of the list
-      entry->next = dictionary;
-      dictionary = entry;
-    }
-  }
-
-  *eight = eight_size;
-  *seven = seven_size;
-  *six = six_size;
-  *five = five_size;
-  *four = four_size;
-  
-  return dictionary;
-}
-
-password_entry* read_password_file(const char* filename, int *size) {
-  // Open the password file
-  FILE* password_file = fopen(filename, "r");
-  if (password_file == NULL) {
-    perror("opening password file");
-    exit(2);
-  }
-
-  char length[LENGTH];
-  // Get the first line containing the number of passwords
-  if(fscanf(password_file, " %s ", length) != 1) {
-    fprintf(stderr, "Error reading password file: malformed line\n");
-    exit(2);
-  }
-
-  *size = atoi(length);
-
-  password_entry* passwords = (password_entry*) malloc(sizeof(password_entry) * *size);
-  int i = -1;
-
-  // Read until we hit the end of the file
-  while (!feof(password_file) && i < *size) {
-    i++;
-  
-    // Make space to hold the popular password unhashed
-    char * passwd = (char *) malloc(sizeof(char) * 9);
-    uint8_t * md5_string = (uint8_t *) malloc(sizeof(uint8_t) * MD5_DIGEST_LENGTH * 2 + 1);
-    
-    // Try to read. The space in the format string is required to eat the newline
-    if(fscanf(password_file, " %s ", passwd) != 1) {
-      fprintf(stderr, "Error reading password file: malformed line\n");
-      exit(2);
-    }
-   
-    // Convert the passwd to a MD5 and store it
-    MD5((unsigned char*) passwd, LENGTH,  md5_string);
-    
-    // Add the new node to the front of the list
-    strcpy(passwords[i].pwd, passwd);
-    memcpy(passwords[i].password_md5, md5_string, MD5_DIGEST_LENGTH);
-  }
-
-  return passwords;
-}
-
 
 __device__ static const void *body(GPU_MD5_CTX *ctx, const void *data, unsigned long size) {
   const unsigned char *ptr;
@@ -727,4 +613,127 @@ __global__ void popularPasswords(uint8_t* passwordHash, password_entry* password
     *checker = true;
     printf("Password has been found on the GPU by popularPasswords. It is %s \n", passwordEntries[index].pwd);
   }
+}
+
+dictionary_entry * parse_dictionary (const char* filename, int * eight, int * seven, int * six, int * five, int * four) {
+  // Open the dictionary file
+  FILE* dictionary_file = fopen(filename, "r");
+  if (dictionary_file == NULL) {
+    perror("opening dictionary file");
+    exit(2);
+  }
+
+  int eight_size = 0;
+  int seven_size = 0;
+  int six_size = 0;
+  int five_size = 0;
+  int four_size = 0;
+  
+  dictionary_entry* dictionary = NULL;
+  
+  // Read until we hit the end of the file
+  while (!feof(dictionary_file)) {
+
+    char word[LENGTH*2];
+    // Try to read. The space in the format string is required to eat the newline
+    if(fscanf(dictionary_file, " %s ", word) != 1) {
+      fprintf(stderr, "Error reading password file: malformed line\n");
+      exit(2);
+    }
+
+    int len = strlen(word);
+    word[len] = '\0';
+    
+    switch (len) {
+    case 8:
+      eight_size++;
+      break;
+
+    case 7:
+      seven_size++;
+      break;
+
+    case 6:
+      six_size++;
+      break;
+
+    case 5:
+      five_size++;
+      break;
+
+    case 4:
+      four_size++;
+      break;
+    }
+
+
+    if (len < 9 && len > 3) {
+      // Make space to hold the popular password unhashed
+      dictionary_entry* entry = (dictionary_entry*) malloc(sizeof(dictionary_entry));
+
+      // Copy the word to entry but make it lowercase
+      for (int i = 0; word[i]; i++) {
+        entry->word[i] = tolower(word[i]);
+      }
+      
+      entry->length = len;
+      
+      // Add the new node to the front of the list
+      entry->next = dictionary;
+      dictionary = entry;
+    }
+  }
+
+  *eight = eight_size;
+  *seven = seven_size;
+  *six = six_size;
+  *five = five_size;
+  *four = four_size;
+  
+  return dictionary;
+}
+
+password_entry* read_password_file(const char* filename, int *size) {
+  // Open the password file
+  FILE* password_file = fopen(filename, "r");
+  if (password_file == NULL) {
+    perror("opening password file");
+    exit(2);
+  }
+
+  char length[LENGTH];
+  // Get the first line containing the number of passwords
+  if(fscanf(password_file, " %s ", length) != 1) {
+    fprintf(stderr, "Error reading password file: malformed line\n");
+    exit(2);
+  }
+
+  *size = atoi(length);
+
+  password_entry* passwords = (password_entry*) malloc(sizeof(password_entry) * *size);
+  int i = -1;
+
+  // Read until we hit the end of the file
+  while (!feof(password_file) && i < *size) {
+    i++;
+  
+    // Make space to hold the popular password unhashed
+    char * passwd = (char *) malloc(sizeof(char) * 9);
+    uint8_t * md5_string = (uint8_t *) malloc(sizeof(uint8_t) * MD5_DIGEST_LENGTH * 2 + 1);
+    
+    // Try to read. The space in the format string is required to eat the newline
+    if(fscanf(password_file, " %s ", passwd) != 1) {
+      fprintf(stderr, "Error reading password file: malformed line\n");
+      exit(2);
+    }
+   
+    // Convert the passwd to a MD5 and store it
+    MD5((unsigned char*) passwd, LENGTH,  md5_string);
+    
+    // Add the new node to the front of the list
+    strcpy(passwords[i].pwd, passwd);
+    memcpy(passwords[i].password_md5, md5_string, MD5_DIGEST_LENGTH);
+  }
+
+  return passwords;
 }
