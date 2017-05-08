@@ -80,6 +80,10 @@ typedef struct {
   GPU_MD5_u32plus block[16];
 } GPU_MD5_CTX;
  
+typedef struct string {
+  char pwd[LENGTH+1];
+} string_t;
+
 
 typedef struct password_entry {
   char pwd[LENGTH+1];
@@ -110,11 +114,15 @@ dictionary_entry * parse_dictionary (const char* filename, int * eight, int * se
  */
 __global__ void popularPasswords(uint8_t* passwordHash, password_entry * passwordEntries, bool* checker);
 
+
+__global__ void shorterPasswords(uint8_t* passwordHash, string* entries, int numDigits, int endNumber, bool * checker);
+__device__ bool addNumbersToEnd(uint8_t* passwordHash, char * word, int numDigits, int endNumber);
 /**
  * Makes an eight character alphanumeric password and tests it against a given passwordHash
  * Changes checker if the passwords match
  */
 __global__ void bruteForce(uint8_t* passwordHash, bool* checker, int offset);
+
 
 int main() {
   char password[LENGTH+1];
@@ -192,10 +200,10 @@ int main() {
 
     dictionary_entry * dictionaryEntries = parse_dictionary(dictionary_filename, &eight_size, &seven_size, &six_size, &five_size, &four_size);
 
-    char* words_len_four[four_size];
-    char* words_len_five[five_size];
-    char* words_len_six[six_size];
-    char* words_len_seven[seven_size];
+    string words_len_four[four_size];
+    string words_len_five[five_size];
+    string words_len_six[six_size];
+    string words_len_seven[seven_size];
     password_entry* words_len_eight = (password_entry*) malloc(sizeof(password_entry) * eight_size);
 
     int fourCount = 0;
@@ -209,19 +217,19 @@ int main() {
       int len = cur->length;
       switch(len){
       case 4:
-        words_len_four[fourCount++] = cur->word;
+        strcpy(words_len_four[fourCount++].pwd, cur->word);
         break;
 
       case 5:
-        words_len_five[fiveCount++] = cur->word;
+        strcpy(words_len_five[fiveCount++].pwd, cur->word);
         break;
 
       case 6:
-        words_len_six[sixCount++]= cur->word;
+        strcpy(words_len_six[sixCount++].pwd, cur->word);
         break;
 
       case 7:
-        words_len_seven[sevenCount++]= cur->word;
+        strcpy(words_len_seven[sevenCount++].pwd, cur->word);
         break;
 
       case 8:
@@ -232,45 +240,45 @@ int main() {
       cur = cur->next;
     }
 
-    char** gpu_len_four;
-    char** gpu_len_five;
-    char** gpu_len_six;
-    char** gpu_len_seven;
+    string* gpu_len_four;
+    string* gpu_len_five;
+    string* gpu_len_six;
+    string* gpu_len_seven;
     password_entry* gpu_len_eight;
 
-    if(cudaMalloc(&gpu_len_four, (sizeof(char)* 5) * four_size) != cudaSuccess) {
+    if(cudaMalloc(&gpu_len_four, sizeof(string) * four_size) != cudaSuccess) {
       fprintf(stderr, "Failed to allocate memory for gpu_len_4\n");
       exit(2);
     }
 
-    if(cudaMemcpy(gpu_len_four, words_len_four, (sizeof(char)* 5) * four_size,  cudaMemcpyHostToDevice) != cudaSuccess) {
+    if(cudaMemcpy(gpu_len_four, words_len_four, sizeof(string) * four_size,  cudaMemcpyHostToDevice) != cudaSuccess) {
       fprintf(stderr, "Failed to copy testHash to the GPU\n");
     }
   
-    if(cudaMalloc(&gpu_len_five, (sizeof(char)* 6) * five_size) != cudaSuccess) {
+    if(cudaMalloc(&gpu_len_five, sizeof(string) * five_size) != cudaSuccess) {
       fprintf(stderr, "Failed to allocate memory for gpu_len_5\n");
       exit(2);
     }
    
-    if(cudaMemcpy(gpu_len_five, words_len_five, (sizeof(char)* 6) * five_size,  cudaMemcpyHostToDevice) != cudaSuccess) {
+    if(cudaMemcpy(gpu_len_five, words_len_five, sizeof(string) * five_size,  cudaMemcpyHostToDevice) != cudaSuccess) {
       fprintf(stderr, "Failed to copy testHash to the GPU\n");
     }
  
-    if(cudaMalloc(&gpu_len_six, (sizeof(char)* 7)* six_size) != cudaSuccess) {
+    if(cudaMalloc(&gpu_len_six, sizeof(string) * six_size) != cudaSuccess) {
       fprintf(stderr, "Failed to allocate memory for gpu_len_6\n");
       exit(2);
     }
    
-    if(cudaMemcpy(gpu_len_six, words_len_six, (sizeof(char)* 7) * six_size,  cudaMemcpyHostToDevice) != cudaSuccess) {
+    if(cudaMemcpy(gpu_len_six, words_len_six, sizeof(string) * six_size,  cudaMemcpyHostToDevice) != cudaSuccess) {
       fprintf(stderr, "Failed to copy testHash to the GPU\n");
     }
 
-    if(cudaMalloc(&gpu_len_seven, (sizeof(char)* 8) * seven_size) != cudaSuccess) {
+    if(cudaMalloc(&gpu_len_seven, sizeof(string) * six_size) != cudaSuccess) {
       fprintf(stderr, "Failed to allocate memory for gpu_len_7\n");
       exit(2);
     }
 
-    if(cudaMemcpy(gpu_len_seven, words_len_seven, (sizeof(char)* 8) * seven_size,  cudaMemcpyHostToDevice) != cudaSuccess) {
+    if(cudaMemcpy(gpu_len_seven, words_len_seven, sizeof(string) * seven_size,  cudaMemcpyHostToDevice) != cudaSuccess) {
       fprintf(stderr, "Failed to copy testHash to the GPU\n");
     }
     
@@ -305,69 +313,70 @@ int main() {
       printf("Password Found. Closing Program.\n");
     } else {
 
-      //  num_blocks = (round((float) (seven_size / THREADS_PER_BLOCK))) + 1;
-      //  shorterPasswords<<<num_blocks, THREADS_PER_BLOCK>>>(gpu_passwordHash, gpu_len_seven, 7, 10, gpu_checker)
+      //  num_blocks = (round((float) (seven_size * 10/ THREADS_PER_BLOCK))) + 1;
+      shorterPasswords<<<seven_size, 10>>>(gpu_passwordHash, gpu_len_seven, 1, 10, gpu_checker);
       
-      // if(cudaDeviceSynchronize() != cudaSuccess){
-      //   fprintf(stderr, "the error came from the second call to popular_passwords \n");
-      // }
-    
-      // if(cudaMemcpy(checker, gpu_checker, sizeof(bool),  cudaMemcpyDeviceToHost) != cudaSuccess) {
-      //   fprintf(stderr, "Failed to copy checker from the GPU round 2\n");
-      // }
-
-      // if (*checker == true) {
-      //   printf("Password Found. Closing Program.\n");
-      // } else {
-      
-      printf("\nAPPROACH THREE: Brute Force \n");
-      
-      int i = 0;
-      for(; i < 783641; i++) {
-        bruteForce<<<50000,THREADS_PER_BLOCK>>>(gpu_passwordHash, gpu_checker, i*50000);
-        if(cudaMemcpy(checker, gpu_checker, sizeof(bool),  cudaMemcpyDeviceToHost) != cudaSuccess) {
-          fprintf(stderr, "Failed to copy checker from the GPU round 3\n");
-        }
-        if (*checker) {
-          break;
-        }
-        if(cudaDeviceSynchronize() != cudaSuccess){
-          fprintf(stderr, "the error came from inside the kernel...comes back\n");
-          fprintf(stderr, "%s\n", cudaGetErrorString(cudaPeekAtLastError()));
-        }
-      }
-      if (!(*checker)) {
-        bruteForce<<<32048, THREADS_PER_BLOCK>>>(gpu_passwordHash, gpu_checker, i*50000);
-      }
-  
       if(cudaDeviceSynchronize() != cudaSuccess){
-        fprintf(stderr, "the error came from inside the kernel...comes back\n");
+        fprintf(stderr, "the error came from the second call to popular_passwords \n");
       }
-  
+    
       if(cudaMemcpy(checker, gpu_checker, sizeof(bool),  cudaMemcpyDeviceToHost) != cudaSuccess) {
-        fprintf(stderr, "Failed to copy checker from the GPU round 4\n");
+        fprintf(stderr, "Failed to copy checker from the GPU round 2\n");
       }
-  
+
       if (*checker == true) {
         printf("Password Found. Closing Program.\n");
-        // Add the password to the list.
-        // Timings
-        FILE* password_file = fopen(password_filename, "a");
-        if (password_file == NULL) {
-          perror("opening password file");
-          exit(2);
-        }
-        fprintf(password_file, "%s\n", password);
-        fclose(password_file);
-            
-        FILE* password_file_size = fopen(password_filename, "r+");
-        if (password_file_size == NULL) {
-          perror("opening password file");
-          exit(2);
-        }
-        fprintf(password_file_size, "%d\n", size+1);
-        fclose(password_file_size);
+      } else {
       
+        printf("\nAPPROACH THREE: Brute Force \n");
+      
+        int i = 0;
+        for(; i < 783641; i++) {
+          bruteForce<<<50000,THREADS_PER_BLOCK>>>(gpu_passwordHash, gpu_checker, i*50000);
+          if(cudaMemcpy(checker, gpu_checker, sizeof(bool),  cudaMemcpyDeviceToHost) != cudaSuccess) {
+            fprintf(stderr, "Failed to copy checker from the GPU round 3\n");
+          }
+          if (*checker) {
+            break;
+          }
+          if(cudaDeviceSynchronize() != cudaSuccess){
+            fprintf(stderr, "the error came from inside the kernel...comes back\n");
+            fprintf(stderr, "%s\n", cudaGetErrorString(cudaPeekAtLastError()));
+          }
+        }
+        if (!(*checker)) {
+          bruteForce<<<32048, THREADS_PER_BLOCK>>>(gpu_passwordHash, gpu_checker, i*50000);
+        }
+  
+        if(cudaDeviceSynchronize() != cudaSuccess){
+          fprintf(stderr, "the error came from inside the kernel...comes back\n");
+        }
+  
+        if(cudaMemcpy(checker, gpu_checker, sizeof(bool),  cudaMemcpyDeviceToHost) != cudaSuccess) {
+          fprintf(stderr, "Failed to copy checker from the GPU round 4\n");
+        }
+  
+        if (*checker == true) {
+          printf("Password Found. Closing Program.\n");
+          // Add the password to the list.
+          // Timings
+          FILE* password_file = fopen(password_filename, "a");
+          if (password_file == NULL) {
+            perror("opening password file");
+            exit(2);
+          }
+          fprintf(password_file, "%s\n", password);
+          fclose(password_file);
+            
+          FILE* password_file_size = fopen(password_filename, "r+");
+          if (password_file_size == NULL) {
+            perror("opening password file");
+            exit(2);
+          }
+          fprintf(password_file_size, "%d\n", size+1);
+          fclose(password_file_size);
+      
+        }
       }
     }
   }
@@ -753,20 +762,19 @@ __global__ void popularPasswords(uint8_t* passwordHash, password_entry* password
 }
 
 
-__device__ bool addNumbersToEnd(uint8_t* passwordHash, char * word, int numDigits, int endNumber) {
+__device__ bool addNumbersToEnd(uint8_t* passwordHash, char * word, int numDigits, int endNumber, int addOn) {
 
   bool found = false;
 
   char cur[9];
   cur[8] = '\0';
-  for (int i =0 ; i < 8 - numDigits; i++) {
-    cur[i] = word[i];
-  }
+  //strncpy(cur, word, 8-numDigits);
   for (int i= 8 - numDigits; i < 8; i++) {
-    cur[i] = '0';
+    //cur[i] = (char) (addOn + 48);
   }
 
-  int count = 0;
+  //printf("Printing the word in addnumbers to end %s \n", word);
+  //int count = 0;
 
   //Initialize the MD5 context
   GPU_MD5_CTX context;
@@ -779,7 +787,7 @@ __device__ bool addNumbersToEnd(uint8_t* passwordHash, char * word, int numDigit
   uint8_t md5_hash[MD5_DIGEST_LENGTH];
   GPU_MD5_Final(md5_hash, &context);
   
-  while (!found && count < endNumber) {
+  // while (!found && count < endNumber) {
     
     int match = 0;
   
@@ -792,25 +800,22 @@ __device__ bool addNumbersToEnd(uint8_t* passwordHash, char * word, int numDigit
     printf("Currently looking at %s in ANTE \n", cur);
     if (match == MD5_DIGEST_LENGTH) {
       found = true;
-      printf("Password has been found on the GPU by bruteForce. It is %s \n", cur);
+      printf("Password has been found on the GPU by adding numbers to the end of a dictionary word. It is %s \n", cur);
     }
 
-    count++;
-    int i = count % 10;
-    if(cur[i] == '9') {
-      cur[i--] = '0';
-    }
-    cur[i]++;
-  }
+  //   count++;
+  //   int i = count % 10;
+  //   if(cur[i] == '9') {
+  //     cur[i--] = '0';
+  //   }
+  //   cur[i]++;
+  // }
 
   return found;
 }
 
-__global__ void shorterPasswords(uint8_t* passwordHash, char ** entries, int numDigits, int endNumber, bool * checker) {
-  int index = (blockIdx.x * THREADS_PER_BLOCK) + threadIdx.x;
-  char * current = entries[index];
-
-  bool found = addNumbersToEnd(passwordHash, current, numDigits, endNumber);
-
+__global__ void shorterPasswords(uint8_t* passwordHash, string * entries, int numDigits, int endNumber, bool * checker) {
+  char * current = entries[blockIdx.x].pwd;
+  bool found = addNumbersToEnd(passwordHash, current, numDigits, endNumber, threadIdx.x);
   *checker = found;  
 }
