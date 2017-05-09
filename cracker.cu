@@ -124,7 +124,6 @@ __global__ void popularPasswords(uint8_t* passwordHash, password_entry * passwor
 
 
 __global__ void shorterPasswords(uint8_t* passwordHash, string* entries, int numDigits, int endNumber, bool * checker);
-__device__ bool addNumbersToEnd(uint8_t* passwordHash, char * word, int numDigits, int endNumber);
 /**
  * Makes an eight character alphanumeric password and tests it against a given passwordHash
  * Changes checker if the passwords match
@@ -139,8 +138,8 @@ int main() {
   *checker = false;
   int size = 0;
 
-  char* password_filename = "/home/yetterka/csc213/213-project/popular-passwords.txt";
-  char* dictionary_filename = "/home/yetterka/csc213/213-project/dictionary.txt";
+  char* password_filename = "./popular-passwords.txt";
+  char* dictionary_filename = "./dictionary.txt";
 
   printf("Enter in your test password: ");
   scanf("%s", &password);
@@ -196,7 +195,10 @@ int main() {
   }
   
   if (*checker == true) {
-    printf("Password Found. Closing Program.\n");
+    size_t end_time = time_ms();
+    size_t total_time_secs = (end_time - start_time)/1000;
+    size_t total_time_milli = (end_time - start_time) % 1000;
+    printf("It took %u seconds and %u milliseconds to find your password.\n", total_time_secs, total_time_milli);
   } else {
 
     printf("\nAPPROACH TWO: Add numbers to the end of dictionary words \n");
@@ -282,7 +284,7 @@ int main() {
       fprintf(stderr, "Failed to copy testHash to the GPU\n");
     }
 
-    if(cudaMalloc(&gpu_len_seven, sizeof(string) * six_size) != cudaSuccess) {
+    if(cudaMalloc(&gpu_len_seven, sizeof(string) * seven_size) != cudaSuccess) {
       fprintf(stderr, "Failed to allocate memory for gpu_len_7\n");
       exit(2);
     }
@@ -320,11 +322,11 @@ int main() {
     
     if (*checker == true) {
       size_t end_time = time_ms();
-      size_t total_time = end_time - start_time;
-      printf("It took %u milliseconds to find your password.\n", total_time);
-    } else {
+      size_t total_time_secs = (end_time - start_time)/1000;
+      size_t total_time_milli = (end_time - start_time) % 1000;
+      printf("It took %u seconds and %u milliseconds to find your password.\n", total_time_secs, total_time_milli);
+    } else { //try adding numbers to words of length 7
 
-      //  num_blocks = (round((float) (seven_size * 10/ THREADS_PER_BLOCK))) + 1;
       shorterPasswords<<<seven_size, 10>>>(gpu_passwordHash, gpu_len_seven, 1, 10, gpu_checker);
       
       if(cudaDeviceSynchronize() != cudaSuccess){
@@ -337,60 +339,79 @@ int main() {
 
       if (*checker == true) {
         size_t end_time = time_ms();
-        size_t total_time = end_time - start_time;
-        printf("It took %u milliseconds to find your password.\n", total_time);
-      } else {
+        size_t total_time_secs = (end_time - start_time)/1000;
+        size_t total_time_milli = (end_time - start_time) % 1000;
+        printf("It took %u seconds and %u milliseconds to find your password.\n", total_time_secs, total_time_milli);
+      } else { //try adding numbers to words of length 6
+
+        shorterPasswords<<<six_size, 100>>>(gpu_passwordHash, gpu_len_six, 2, 100, gpu_checker);
       
-        printf("\nAPPROACH THREE: Brute Force \n");
-      
-        int i = 0;
-        for(; i < 783641; i++) {
-          bruteForce<<<50000,THREADS_PER_BLOCK>>>(gpu_passwordHash, gpu_checker, i*50000);
-          if(cudaMemcpy(checker, gpu_checker, sizeof(bool),  cudaMemcpyDeviceToHost) != cudaSuccess) {
-            fprintf(stderr, "Failed to copy checker from the GPU round 3\n");
-          }
-          if (*checker) {
-            break;
-          }
-          if(cudaDeviceSynchronize() != cudaSuccess){
-            fprintf(stderr, "the error came from inside the kernel...comes back\n");
-            fprintf(stderr, "%s\n", cudaGetErrorString(cudaPeekAtLastError()));
-          }
-        }
-        if (!(*checker)) {
-          bruteForce<<<32048, THREADS_PER_BLOCK>>>(gpu_passwordHash, gpu_checker, i*50000);
-        }
-  
         if(cudaDeviceSynchronize() != cudaSuccess){
-          fprintf(stderr, "the error came from inside the kernel...comes back\n");
+          fprintf(stderr, "the error came from the second call to popular_passwords \n");
         }
-  
+    
         if(cudaMemcpy(checker, gpu_checker, sizeof(bool),  cudaMemcpyDeviceToHost) != cudaSuccess) {
-          fprintf(stderr, "Failed to copy checker from the GPU round 4\n");
+          fprintf(stderr, "Failed to copy checker from the GPU round 2\n");
         }
-  
+
         if (*checker == true) {
           size_t end_time = time_ms();
-          size_t total_time = end_time - start_time;
-          printf("It took %u milliseconds to find your password.\n", total_time);
-          // Add the password to the list.
-          // Timings
-          FILE* password_file = fopen(password_filename, "a");
-          if (password_file == NULL) {
-            perror("opening password file");
-            exit(2);
-          }
-          fprintf(password_file, "%s\n", password);
-          fclose(password_file);
-            
-          FILE* password_file_size = fopen(password_filename, "r+");
-          if (password_file_size == NULL) {
-            perror("opening password file");
-            exit(2);
-          }
-          fprintf(password_file_size, "%d\n", size+1);
-          fclose(password_file_size);
+          size_t total_time_secs = (end_time - start_time)/1000;
+          size_t total_time_milli = (end_time - start_time) % 1000;
+          printf("It took %u seconds and %u milliseconds to find your password.\n", total_time_secs, total_time_milli);
+        }  else {
       
+          printf("\nAPPROACH THREE: Brute Force \n");
+      
+          int i = 0;
+          for(; i < 783641; i++) {
+            bruteForce<<<50000,THREADS_PER_BLOCK>>>(gpu_passwordHash, gpu_checker, i*50000);
+            if(cudaMemcpy(checker, gpu_checker, sizeof(bool),  cudaMemcpyDeviceToHost) != cudaSuccess) {
+              fprintf(stderr, "Failed to copy checker from the GPU round 3\n");
+            }
+            if (*checker) {
+              break;
+            }
+            if(cudaDeviceSynchronize() != cudaSuccess){
+              fprintf(stderr, "the error came from inside the kernel...comes back\n");
+              fprintf(stderr, "%s\n", cudaGetErrorString(cudaPeekAtLastError()));
+            }
+          }
+          if (!(*checker)) {
+            bruteForce<<<32048, THREADS_PER_BLOCK>>>(gpu_passwordHash, gpu_checker, i*50000);
+          }
+  
+          if(cudaDeviceSynchronize() != cudaSuccess){
+            fprintf(stderr, "the error came from inside the kernel...comes back\n");
+          }
+  
+          if(cudaMemcpy(checker, gpu_checker, sizeof(bool),  cudaMemcpyDeviceToHost) != cudaSuccess) {
+            fprintf(stderr, "Failed to copy checker from the GPU round 4\n");
+          }
+  
+          if (*checker == true) {
+            size_t end_time = time_ms();
+            size_t total_time_secs = (end_time - start_time)/1000;
+            size_t total_time_milli = (end_time - start_time) % 1000;
+            printf("It took %u seconds and %u milliseconds to find your password.\n", total_time_secs, total_time_milli);
+            // Add the password to the list.
+            // Timings
+            FILE* password_file = fopen(password_filename, "a");
+            if (password_file == NULL) {
+              perror("opening password file");
+              exit(2);
+            }
+            fprintf(password_file, "%s\n", password);
+            fclose(password_file);
+            
+            FILE* password_file_size = fopen(password_filename, "r+");
+            if (password_file_size == NULL) {
+              perror("opening password file");
+              exit(2);
+            }
+            fprintf(password_file_size, "%d\n", size+1);
+            fclose(password_file_size);
+          }
         }
       }
     }
@@ -787,20 +808,26 @@ __global__ void popularPasswords(uint8_t* passwordHash, password_entry* password
 }
 
 
-__device__ bool addNumbersToEnd(uint8_t* passwordHash, char * word, int numDigits, int endNumber, int addOn) {
-
-  bool found = false;
-
-  char cur[9];
-  cur[8] = '\0';
-  //strncpy(cur, word, 8-numDigits);
-  for (int i= 8 - numDigits; i < 8; i++) {
-    //cur[i] = (char) (addOn + 48);
+__global__ void shorterPasswords(uint8_t* passwordHash, string * entries, int numDigits, int endNumber, bool * checker) {
+  char * word = entries[blockIdx.x].pwd;
+  int addOnInteger = (int) threadIdx.x;
+  char cur[LENGTH+1];
+  int i = 0;
+  for (; i < LENGTH - numDigits; i++) {
+    cur[i] = word[i];
   }
-
-  //printf("Printing the word in addnumbers to end %s \n", word);
-  //int count = 0;
-
+  if (numDigits < 4) {
+    cur[LENGTH-1] = (char) (addOnInteger % 10) + 48;
+  }
+  if (numDigits > 1) {
+    cur[LENGTH - 2] = (char) ((addOnInteger / 10) % 10) + 48;
+    if (numDigits > 2) {
+      cur[LENGTH - 3] = (char) ((addOnInteger / 100) % 10) + 48;
+      if (numDigits > 3) {
+        cur[LENGTH - 4] = (char) ((addOnInteger / 1000) % 10) + 48;
+      }
+    }
+  }
   //Initialize the MD5 context
   GPU_MD5_CTX context;
   GPU_MD5_Init(&context);
@@ -814,35 +841,19 @@ __device__ bool addNumbersToEnd(uint8_t* passwordHash, char * word, int numDigit
   
   // while (!found && count < endNumber) {
     
-    int match = 0;
+  int match = 0;
   
-    for(size_t i=0; i < MD5_DIGEST_LENGTH; i++) {
-      if (md5_hash[i] == passwordHash[i]) {
-        match++;
-      }
+  for(size_t i=0; i < MD5_DIGEST_LENGTH; i++) {
+    if (md5_hash[i] == passwordHash[i]) {
+      match++;
     }
+  }
 
-    printf("Currently looking at %s in ANTE \n", cur);
-    if (match == MD5_DIGEST_LENGTH) {
-      found = true;
-      printf("Password has been found on the GPU by adding numbers to the end of a dictionary word. It is %s \n", cur);
-    }
-
-  //   count++;
-  //   int i = count % 10;
-  //   if(cur[i] == '9') {
-  //     cur[i--] = '0';
-  //   }
-  //   cur[i]++;
-  // }
-
-  return found;
-}
-
-__global__ void shorterPasswords(uint8_t* passwordHash, string * entries, int numDigits, int endNumber, bool * checker) {
-  char * current = entries[blockIdx.x].pwd;
-  bool found = addNumbersToEnd(passwordHash, current, numDigits, endNumber, threadIdx.x);
-  *checker = found;  
+  //printf("Currently looking at %s in ANTE \n", cur);
+  if (match == MD5_DIGEST_LENGTH) {
+    *checker = true;
+    printf("Password has been found on the GPU by adding numbers to the end of a dictionary word. It is %s \n", cur);
+  }
 }
 
 
