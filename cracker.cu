@@ -160,8 +160,7 @@ int main() {
   scanf("%s", &password);
   size_t start_time = time_ms();
   MD5((unsigned char*) password, LENGTH, passwordHash);
-
-  printf("\nAPPROACH ONE: Look in popular passwords file \n");
+ 
   password_entry* passwordEntries = read_password_file(password_filename, &size);
 
   uint8_t* gpu_passwordHash;
@@ -212,8 +211,6 @@ int main() {
     size_t total_time_milli = (end_time - start_time) % 1000;
     printf("It took %u seconds and %u milliseconds to find your password.\n", total_time_secs, total_time_milli);
   } else {
-
-    printf("\nAPPROACH TWO: Add numbers to the end of dictionary words \n");
     
     int six_size = 0;
     int seven_size = 0;
@@ -337,8 +334,6 @@ int main() {
           size_t total_time_milli = (end_time - start_time) % 1000;
           printf("It took %u seconds and %u milliseconds to find your password.\n", total_time_secs, total_time_milli);
         }  else {
-      
-          printf("\nAPPROACH THREE: Brute Force \n");
       
           int i = 0;
           for(; i < 783641; i++) {
@@ -718,6 +713,9 @@ __global__ void bruteForce(uint8_t* passwordHash, bool* checker, int offset) {
   int new_block_id = blockIdx.x + offset;
   
   char password[LENGTH+1];
+ 
+  // Calculates the characters of the password to be generated. `pow` function was not
+  // available 
   password[7] = computeChar(threadIdx.x);
   password[6] = computeChar(new_block_id*2 + (threadIdx.x / NUM_CHAR));
   password[5] = computeChar(new_block_id / 18);
@@ -725,7 +723,7 @@ __global__ void bruteForce(uint8_t* passwordHash, bool* checker, int offset) {
   password[3] = computeChar(new_block_id / 23328);
   password[2] = computeChar(new_block_id / 839808);
   password[1] = computeChar(new_block_id / 30233088);
-  password[0] = computeChar(new_block_id / 108839168);
+  password[0] = computeChar(new_block_id / 1088391168);
   password[8] = '\0';
 
   //Initialize the MD5 context
